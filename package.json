@@ -25,6 +25,7 @@
     "@zilliz/milvus2-sdk-node": "^2.6.5",
     "bcryptjs": "^3.0.3",
     "formidable": "^3.5.4",
+    "isolation-forest": "^0.0.9",
     "langchain": "^1.1.5",
     "lucide-react": "^0.555.0",
     "next": "^15.5.7",

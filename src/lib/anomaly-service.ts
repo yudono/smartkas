@@ -1,5 +1,6 @@
 import { prisma } from '@/src/lib/prisma';
 import { AIService } from '@/src/lib/ai-service';
+import { IsolationForest } from 'isolation-forest';
 
 export class AnomalyService {
     static async runDetection() {
@@ -26,36 +27,78 @@ export class AnomalyService {
         for (const business of businesses) {
             if (business.transactions.length < 5) continue; // Skip if not enough data
 
-            // Prepare data for AI (simplify to save tokens)
-            const simplifiedTransactions = business.transactions.map(t => ({
-                date: t.date.toISOString().split('T')[0],
-                amount: Number(t.amount),
-                type: t.type,
-                category: t.category,
-                description: t.description
-            }));
+            // Prepare data for Isolation Forest (using amount as the main feature)
+            // Isolation Forest expects an array of objects
+            const dataPoints = business.transactions.map(t => {
+                return { amount: Number(t.amount) };
+            });
 
-            // Detect anomalies
-            const anomalies = await AIService.detectAnomalies(simplifiedTransactions);
+            // Train Isolation Forest
+            const forest = new IsolationForest();
+            forest.fit(dataPoints);
 
-            if (anomalies.length > 0) {
-                totalAnomalies += anomalies.length;
+            // Predict anomalies (scores)
+            const scores = forest.scores();
 
-                // Save alerts to DB
-                await prisma.alert.createMany({
-                    data: anomalies.map((a: any) => ({
-                        businessId: business.id,
-                        title: a.title,
-                        description: a.description,
-                        severity: a.severity,
-                        status: 'new',
-                        amount: a.amount,
-                        recommendation: a.recommendation,
-                        impact: a.impact,
-                        suggestedActions: a.suggestedActions,
-                        date: new Date()
-                    }))
-                });
+            // Filter transactions with high anomaly scores (e.g., top 5% or threshold)
+            // Isolation Forest scores are usually between 0 and 1. Closer to 1 is more anomalous.
+            const threshold = 0.6; // Adjust based on sensitivity
+
+            const anomalousIndices = scores
+                .map((score, index) => ({ score, index }))
+                .filter(item => item.score > threshold)
+                .map(item => item.index);
+
+            if (anomalousIndices.length > 0) {
+                // Get the actual anomalous transactions
+                const anomalousTransactions = anomalousIndices.map(index => business.transactions[index]);
+
+                // Prepare data for AI to generate insights for these specific anomalies
+                const simplifiedAnomalies = anomalousTransactions.map(t => ({
+                    date: t.date.toISOString().split('T')[0],
+                    amount: Number(t.amount),
+                    type: t.type,
+                    category: t.category,
+                    description: t.description
+                }));
+
+                // Use AI to enrich the alert (generate title, description, recommendation)
+                // We pass ONLY the detected anomalies to the AI to explain WHY they are anomalies
+                const aiInsights = await AIService.detectAnomalies(simplifiedAnomalies);
+
+                if (aiInsights.length > 0) {
+                    totalAnomalies += aiInsights.length;
+
+                    // Save alerts to DB (Check for duplicates first)
+                    for (const anomaly of aiInsights) {
+                        // Check if similar alert exists in last 24 hours
+                        const existingAlert = await prisma.alert.findFirst({
+                            where: {
+                                businessId: business.id,
+                                title: anomaly.title,
+                                createdAt: { gt: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+                            }
+                        });
+
+                        if (!existingAlert) {
+                            await prisma.alert.create({
+                                data: {
+                                    businessId: business.id,
+                                    title: anomaly.title,
+                                    description: anomaly.description,
+                                    severity: anomaly.severity,
+                                    status: 'new',
+                                    amount: anomaly.amount,
+                                    recommendation: anomaly.recommendation,
+                                    impact: anomaly.impact,
+                                    suggestedActions: anomaly.suggestedActions,
+                                    date: new Date()
+                                }
+                            });
+                            totalAnomalies++;
+                        }
+                    }
+                }
             }
             // Update lastAnomalyCheck
             await prisma.business.update({

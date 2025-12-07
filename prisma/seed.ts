@@ -196,18 +196,23 @@ async function main() {
 
                 const id = cols[0]; // Use TransactionID from CSV
                 const amount = parseFloat(cols[2]);
-                const dateStr = cols[3];
+                // const dateStr = cols[3]; // Original date from CSV (too old)
                 const typeStr = cols[4];
                 const location = cols[5];
 
                 const type = typeStr === 'Debit' ? 'out' : 'in';
                 const category = typeStr === 'Debit' ? 'Operasional' : 'Penjualan';
 
+                // Generate a random date within the last 90 days to ensure data shows up in dashboard
+                const today = new Date();
+                const pastDate = new Date();
+                pastDate.setDate(today.getDate() - Math.floor(Math.random() * 90));
+
                 transactionsToInsert.push({
                     id: id, // Explicitly set ID
                     businessId: business.id,
                     category: category,
-                    date: new Date(dateStr),
+                    date: pastDate,
                     type: type,
                     amount: amount,
                     description: `Transaction at ${location}`,

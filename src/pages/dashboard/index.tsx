@@ -29,15 +29,17 @@ import {
 // import { formatCurrency } from "../../lib/format-currency"; // Removed in favor of hook
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-const chartData = [
-  { name: "Sen", income: 4200, expense: 2100 },
-  { name: "Sel", income: 3800, expense: 1900 },
-  { name: "Rab", income: 5100, expense: 3200 },
-  { name: "Kam", income: 4700, expense: 2800 },
-  { name: "Jum", income: 5900, expense: 4100 },
-  { name: "Sab", income: 7200, expense: 4500 },
-  { name: "Min", income: 6800, expense: 3900 },
-];
+interface ChartData {
+  name: string;
+  income: number;
+  expense: number;
+}
+
+const fetchChartData = async (): Promise<ChartData[]> => {
+  const res = await fetch('/api/dashboard/chart');
+  if (!res.ok) throw new Error('Failed to fetch chart data');
+  return res.json();
+};
 
 interface DashboardMetrics {
   totalIncome: number;
@@ -94,6 +96,11 @@ export default function DashboardPage() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: chartData, isLoading: isLoadingChart } = useQuery<ChartData[]>({
+    queryKey: ["dashboardChart"],
+    queryFn: fetchChartData,
+  });
+
   const { data: anomalies } = useQuery<any[]>({ // Fetch anomalies
     queryKey: ["anomalies"],
     queryFn: fetchAnomalies,
@@ -106,6 +113,7 @@ export default function DashboardPage() {
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboardMetrics"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboardInsight"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboardChart"] });
       await queryClient.invalidateQueries({ queryKey: ["anomalies"] }); // Invalidate anomalies too
     },
     onSuccess: () => {
@@ -412,6 +420,11 @@ export default function DashboardPage() {
             Tren Arus Kas Mingguan
           </h3>
           <div className="h-64 w-full">
+            {isLoadingChart ? (
+              <div className="flex items-center justify-center h-full text-slate-500">
+                Memuat data grafik...
+              </div>
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
                 <defs>
@@ -447,7 +460,7 @@ export default function DashboardPage() {
                     border: "none",
                     boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                   }}
-                  formatter={(value: number) => [`Rp ${value}k`, ""]}
+                  formatter={(value: number) => [formatCurrency(value), ""]}
                 />
                 <Area
                   type="monotone"
@@ -468,6 +481,7 @@ export default function DashboardPage() {
                 <Legend verticalAlign="top" height={36} />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>

@@ -21,71 +21,76 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === 'GET') {
         try {
-            const { startDate, endDate } = req.query;
+            // Get aggregated monthly data (mocked logic for now, but based on real data structure)
+            // In a real app, you'd aggregate transactions by month.
+            // Here we'll take the last 3 months of data and project the next month.
 
-            if (!startDate || !endDate) {
-                return res.status(400).json({ message: 'Missing startDate or endDate query parameters' });
-            }
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setMonth(endDate.getMonth() - 3);
 
-            // Aggregate cashflow by month for the last 6 months
             const transactions = await prisma.transaction.findMany({
                 where: {
                     businessId: business.id,
                     date: {
-                        gte: new Date(startDate as string),
-                        lte: new Date(endDate as string),
-                    },
-                },
-                orderBy: { date: 'asc' },
-            });
-            const monthlyData = new Map<string, number>();
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
-            // Initialize last 6 months
-            for (let i = 0; i < 6; i++) {
-                const d = new Date();
-                d.setMonth(d.getMonth() - (5 - i));
-                const monthName = months[d.getMonth()];
-                monthlyData.set(monthName, 0);
-            }
-
-            transactions.forEach(tx => {
-                const monthIndex = tx.date.getMonth();
-                const monthName = months[monthIndex];
-
-                if (monthlyData.has(monthName)) {
-                    let currentVal = monthlyData.get(monthName) || 0;
-                    if (tx.type === 'in') {
-                        currentVal += Number(tx.amount);
-                    } else {
-                        currentVal -= Number(tx.amount);
+                        gte: startDate,
+                        lte: endDate
                     }
-                    monthlyData.set(monthName, currentVal);
                 }
             });
 
-            const chartData = Array.from(monthlyData.entries()).map(([name, val]) => ({
+            // Simple aggregation by month
+            const monthlyData: Record<string, number> = {};
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+            transactions.forEach(t => {
+                const monthIndex = t.date.getMonth();
+                const monthName = months[monthIndex];
+                const amount = Number(t.amount);
+
+                if (!monthlyData[monthName]) monthlyData[monthName] = 0;
+
+                if (t.type === 'in') monthlyData[monthName] += amount;
+                else monthlyData[monthName] -= amount;
+            });
+
+            // Format for chart
+            const chartData: { name: string; val: number; color: string; isPrediction?: boolean }[] = Object.keys(monthlyData).map(name => ({
                 name,
-                val,
-                color: val >= 0 ? '#10b981' : '#ef4444', // Green for positive, Red for negative
+                val: monthlyData[name],
+                color: monthlyData[name] >= 0 ? "#10b981" : "#ef4444"
             }));
 
-            // Add a prediction for next month (simple +10% growth)
-            const lastMonthVal = chartData[chartData.length - 1].val;
-            const nextMonthDate = new Date();
-            nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-            const nextMonthName = months[nextMonthDate.getMonth()];
+            // Add prediction for next month (average of last 3 months)
+            const total = Object.values(monthlyData).reduce((a, b) => a + b, 0);
+            const count = Object.values(monthlyData).length || 1;
+            const average = total / count;
+
+            const nextMonthIndex = (endDate.getMonth() + 1) % 12;
+            const nextMonthName = months[nextMonthIndex];
 
             chartData.push({
                 name: `${nextMonthName} (Est)`,
-                val: lastMonthVal * 1.1,
-                color: '#34d399',
-                isPrediction: true,
-            } as any);
+                val: average,
+                color: "#3b82f6",
+                isPrediction: true
+            });
+
+            // Ensure we have at least some data points for the chart to look good
+            // If no data, return empty or default
+            if (chartData.length === 1 && chartData[0].isPrediction) {
+                return res.status(200).json([
+                    { name: months[(endDate.getMonth() - 2 + 12) % 12], val: 0, color: "#94a3b8" },
+                    { name: months[(endDate.getMonth() - 1 + 12) % 12], val: 0, color: "#94a3b8" },
+                    { name: months[endDate.getMonth()], val: 0, color: "#94a3b8" },
+                    chartData[0]
+                ]);
+            }
 
             return res.status(200).json(chartData);
+
         } catch (error) {
-            console.error('Error generating report:', error);
+            console.error('Error generating cashflow prediction:', error);
             return res.status(500).json({ message: 'Internal Server Error' });
         }
     } else {

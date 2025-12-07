@@ -1108,6 +1108,13 @@ is-stream@^2.0.0:
   resolved "https://registry.npmjs.org/is-stream/-/is-stream-2.0.1.tgz"
   integrity sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg==
 
+isolation-forest@^0.0.9:
+  version "0.0.9"
+  resolved "https://registry.npmjs.org/isolation-forest/-/isolation-forest-0.0.9.tgz"
+  integrity sha512-5rxlHv1ZfZdYcmj0D9r/LKNT8aEDojXJOfA7lu8ymw8p/bA46HPkNRz+uaenQLt1HIYf975rkoY9myoCnMvOXQ==
+  dependencies:
+    knuth-shuffle "^1.0.8"
+
 jiti@^2.4.2, jiti@^2.6.1:
   version "2.6.1"
   resolved "https://registry.npmjs.org/jiti/-/jiti-2.6.1.tgz"
@@ -1136,6 +1143,11 @@ jsonpointer@^5.0.1:
   version "5.0.1"
   resolved "https://registry.npmjs.org/jsonpointer/-/jsonpointer-5.0.1.tgz"
   integrity sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==
+
+knuth-shuffle@^1.0.8:
+  version "1.0.8"
+  resolved "https://registry.npmjs.org/knuth-shuffle/-/knuth-shuffle-1.0.8.tgz"
+  integrity sha512-IdC4Hpp+mx53zTt6VAGsAtbGM0g4BV9fP8tTcviCosSwocHcRDw9uG5Rnv6wLWckF4r72qeXFoK9NkvV1gUJCQ==
 
 kuler@^2.0.0:
   version "2.0.0"
