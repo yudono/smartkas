@@ -145,6 +145,7 @@ model Alert {
   recommendation   String?  @db.Text
   impact           String?
   suggestedActions String[] // Array of strings for actions
+  transactionDetails Json?  // Store details of transactions involved in the anomaly
   userNotes        String?  @db.Text
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

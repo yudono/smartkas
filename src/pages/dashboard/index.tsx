@@ -25,14 +25,19 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  ComposedChart,
+  Scatter,
 } from "recharts";
 // import { formatCurrency } from "../../lib/format-currency"; // Removed in favor of hook
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface ChartData {
   name: string;
+  date: string;
   income: number;
   expense: number;
+  anomaly?: number; // For plotting
+  anomalyDetails?: any[];
 }
 
 const fetchChartData = async (): Promise<ChartData[]> => {
@@ -69,7 +74,7 @@ const fetchInsight = async (): Promise<{ insight: string }> => {
 };
 
 const fetchAnomalies = async (): Promise<any[]> => {
-  const res = await fetch('/api/cron/detect-anomalies'); // Or /api/alerts? Using detect-anomalies as per usage
+  const res = await fetch('/api/alerts'); 
   if (!res.ok) throw new Error('Failed to fetch anomalies');
   return res.json();
 };
@@ -373,7 +378,18 @@ export default function DashboardPage() {
               </div>
             ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
+              <ComposedChart data={chartData?.map(d => {
+                 const dayAnomalies = anomalies?.filter((a: any) => {
+                    // Handle both ISO string and potential Date objects
+                    const alertDate = new Date(a.date).toISOString().split('T')[0];
+                    return alertDate === d.date;
+                 });
+                 return {
+                   ...d,
+                   anomaly: dayAnomalies && dayAnomalies.length > 0 ? d.expense : undefined, // Plot on expense line
+                   anomalyDetails: dayAnomalies
+                 };
+              })}>
                 <defs>
                   <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
@@ -407,12 +423,19 @@ export default function DashboardPage() {
                     border: "none",
                     boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                   }}
-                  formatter={(value: number) => [formatCurrency(value), ""]}
+                  formatter={(value: number, name: string, props: any) => {
+                    if (name === "Anomali") {
+                        const details = props.payload.anomalyDetails;
+                        return [details ? `${details.length} Detected` : "Detected", "Anomali"];
+                    }
+                    return [formatCurrency(value), name === "income" ? "Pemasukan" : "Pengeluaran"];
+                  }}
+                  labelFormatter={(label) => label}
                 />
                 <Area
                   type="monotone"
                   dataKey="income"
-                  name="Pemasukan"
+                  name="income"
                   stroke="#10b981"
                   strokeWidth={2}
                   fill="url(#colorIncome)"
@@ -420,13 +443,20 @@ export default function DashboardPage() {
                 <Area
                   type="monotone"
                   dataKey="expense"
-                  name="Pengeluaran"
+                  name="expense"
                   stroke="#ef4444"
                   strokeWidth={2}
                   fill="url(#colorExpense)"
                 />
+                <Scatter 
+                    name="Anomali" 
+                    dataKey="anomaly" 
+                    fill="#ef4444" 
+                    shape="cross"
+                    r={6}
+                />
                 <Legend verticalAlign="top" height={36} />
-              </AreaChart>
+              </ComposedChart>
             </ResponsiveContainer>
             )}
           </div>

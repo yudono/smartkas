@@ -59,6 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
                 chartData.push({
                     name: dayName,
+                    date: dateStr,
                     income,
                     expense
                 });

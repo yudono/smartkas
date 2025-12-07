@@ -8,6 +8,7 @@ import {
   ChevronDown,
   CheckCircle2,
   PlayCircle,
+  FileText,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 // import { formatCurrency } from "../../lib/format-currency"; // Removed in favor of hook
@@ -258,6 +259,29 @@ export default function DashboardAlertPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* Transaction Details Section */}
+                    {alert.transactionDetails && (
+                      <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FileText size={16} className="text-slate-500" />
+                          <h5 className="font-bold text-slate-700 text-sm">Detail Transaksi Terkait</h5>
+                        </div>
+                        <div className="space-y-2">
+                          {(alert.transactionDetails as any[]).map((t: any, idx: number) => (
+                            <div key={idx} className="flex justify-between items-center text-sm bg-white p-2 rounded border border-slate-100">
+                              <div>
+                                <div className="font-medium text-slate-800">{t.description || "Tanpa Deskripsi"}</div>
+                                <div className="text-xs text-slate-500">{t.date} • {t.category}</div>
+                              </div>
+                              <div className={`font-bold ${t.type === 'in' ? 'text-emerald-600' : 'text-red-600'}`}>
+                                {t.type === 'in' ? '+' : '-'}{formatCurrency(t.amount)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Actions Buttons */}
                     {alert.status !== "resolved" && (

@@ -40,6 +40,7 @@ export interface AIAlert {
   recommendation?: string;
   status: 'new' | 'in_progress' | 'resolved';
   suggestedActions: string[];
+  transactionDetails?: any[]; // Array of transaction objects
   userNotes?: string;
   impact?: string; // e.g., "Hemat Rp 500k"
   category?: string;

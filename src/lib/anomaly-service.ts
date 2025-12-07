@@ -95,6 +95,7 @@ export class AnomalyService {
                                     recommendation: anomaly.recommendation,
                                     impact: anomaly.impact,
                                     suggestedActions: anomaly.suggestedActions,
+                                    transactionDetails: simplifiedAnomalies, // Save the transaction details
                                     date: new Date()
                                 }
                             });
