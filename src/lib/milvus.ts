@@ -1,0 +1,139 @@
+import { MilvusClient, DataType } from "@zilliz/milvus2-sdk-node";
+import { HuggingFaceTransformersEmbeddings } from "@langchain/community/embeddings/huggingface_transformers";
+
+const MILVUS_URL = process.env.MILVUS_URL || "144.91.103.249:19530";
+const MILVUS_TOKEN = process.env.MILVUS_TOKEN;
+const COLLECTION_NAME = "transactions";
+
+// Initialize Milvus Client
+// Note: In a real app, you might want to handle connection pooling or singleton better.
+export const milvusClient = new MilvusClient({
+    address: MILVUS_URL,
+    token: MILVUS_TOKEN
+});
+
+// Initialize Embeddings
+const embeddings = new HuggingFaceTransformersEmbeddings({
+    model: "Xenova/all-MiniLM-L6-v2",
+});
+
+export async function ensureCollection() {
+    const hasCollection = await milvusClient.hasCollection({
+        collection_name: COLLECTION_NAME,
+    });
+
+    if (!hasCollection.value) {
+        await milvusClient.createCollection({
+            collection_name: COLLECTION_NAME,
+            fields: [
+                {
+                    name: "id",
+                    description: "Transaction ID",
+                    data_type: DataType.VarChar,
+                    max_length: 64,
+                    is_primary_key: true,
+                },
+                {
+                    name: "user_id",
+                    description: "User ID",
+                    data_type: DataType.VarChar,
+                    max_length: 64,
+                },
+                {
+                    name: "vector",
+                    description: "Transaction Embedding",
+                    data_type: DataType.FloatVector,
+                    dim: 384, // Xenova/all-MiniLM-L6-v2 dimension
+                },
+                {
+                    name: "text",
+                    description: "Transaction Description",
+                    data_type: DataType.VarChar,
+                    max_length: 2048,
+                },
+                {
+                    name: "metadata",
+                    description: "Transaction Metadata (JSON string)",
+                    data_type: DataType.VarChar,
+                    max_length: 4096,
+                },
+            ],
+        });
+
+        // Create index
+        await milvusClient.createIndex({
+            collection_name: COLLECTION_NAME,
+            field_name: "vector",
+            index_name: "vector_index",
+            index_type: "IVF_FLAT",
+            metric_type: "L2",
+            params: { nlist: 1024 },
+        });
+
+        await milvusClient.loadCollectionSync({
+            collection_name: COLLECTION_NAME,
+        });
+    }
+}
+
+export async function upsertTransaction(transaction: any) {
+    await ensureCollection();
+
+    // Handle both old Cashflow (nested category) and new Transaction (flat category)
+    const categoryName = typeof transaction.category === 'string' ? transaction.category : transaction.category?.categoryName || 'Uncategorized';
+    const type = transaction.type || transaction.cashflowType;
+    const date = transaction.date || transaction.transactionDate;
+
+    // Ensure we have a user_id. If transaction object doesn't have it (e.g. from create result), 
+    // we might need to fetch it or pass it. 
+    // For now, assuming transaction has business.userId OR we pass it.
+    // If business is not included, we might fail. 
+    // Ideally, the caller should provide the full object or we fetch it here.
+    // Let's assume the caller will ensure business.userId is available or we use a fallback/error.
+    const userId = transaction.business?.userId || transaction.userId; // Add userId to Transaction model if needed or include business
+
+    const text = `${transaction.description} - ${transaction.amount} - ${categoryName} - ${type}`;
+    const vector = await embeddings.embedQuery(text);
+
+    const data = {
+        id: transaction.id,
+        user_id: userId,
+        vector: vector,
+        text: text,
+        metadata: JSON.stringify({
+            amount: Number(transaction.amount),
+            date: date,
+            category: categoryName,
+            type: type,
+        }),
+    };
+
+    await milvusClient.upsert({
+        collection_name: COLLECTION_NAME,
+        fields_data: [data],
+    });
+}
+
+export async function deleteTransaction(id: string) {
+    await ensureCollection();
+    await milvusClient.delete({
+        collection_name: COLLECTION_NAME,
+        filter: `id == "${id}"`,
+    });
+}
+
+export async function searchTransactions(userId: string, query: string, limit = 5) {
+    await ensureCollection();
+
+    const vector = await embeddings.embedQuery(query);
+
+    const searchRes = await milvusClient.search({
+        collection_name: COLLECTION_NAME,
+        data: vector,
+        filter: `user_id == "${userId}"`,
+        limit: limit,
+        output_fields: ["text", "metadata"],
+    });
+
+    return searchRes.results;
+}

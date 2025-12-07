@@ -1,0 +1,154 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Business {
+  id           String @id @default(cuid())
+  userId       String
+  businessName String
+  businessType String
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  transactions Transaction[]
+  dailyMetrics DailyMetric[]
+  products     Product[]
+  alerts       Alert[]
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  price      Float    // Changed from Decimal to Float
+  stock      Int      @default(0)
+  unit       String   @default("pcs")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+  transactions Transaction[] // Relation back to Transaction
+
+  @@index([businessId])
+}
+
+model Transaction {
+  id              String   @id @default(cuid())
+  businessId      String
+  date            DateTime @db.Date
+  type            String   // 'in' or 'out'
+  amount          Decimal  @db.Decimal(18, 2)
+  category        String
+  description     String?
+  status          String   @default("completed")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  productId       String?
+  product         Product? @relation(fields: [productId], references: [id])
+
+  business Business @relation(fields: [businessId], references: [id])
+}
+
+model DailyMetric {
+  id              String   @id @default(cuid())
+  businessId      String
+  date            DateTime @unique @db.Date
+  totalIncome     Decimal  @db.Decimal(18, 2)
+  totalExpense    Decimal  @db.Decimal(18, 2)
+  netCash         Decimal  @db.Decimal(18, 2)
+  abnormalFlag    Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+}
+
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  fullname      String?
+  email         String?    @unique
+  password      String?
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  businesses    Business[]
+  settings      UserSetting?
+}
+
+model UserSetting {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  currency  String   @default("IDR")
+  timezone  String   @default("Asia/Jakarta")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Alert {
+  id               String   @id @default(cuid())
+  businessId       String
+  title            String
+  description      String
+  severity         String   // 'high', 'medium', 'low'
+  status           String   @default("new") // 'new', 'in_progress', 'resolved'
+  date             DateTime @default(now())
+  amount           Decimal? @db.Decimal(18, 2)
+  recommendation   String?  @db.Text
+  impact           String?
+  suggestedActions String[] // Array of strings for actions
+  userNotes        String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}

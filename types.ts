@@ -52,14 +52,7 @@ export interface Transaction {
   category: string;
   amount: number;
   type: 'in' | 'out';
-  source: 'Bank' | 'E-Wallet' | 'POS' | 'Cash' | 'Import';
+  source: 'Bank' | 'E-Wallet' | 'POS' | 'Cash' | 'Import' | 'Manual';
   status: 'completed' | 'pending';
-}
-
-export interface HPPData {
-  totalRevenue: number;
-  rawMaterialCost: number;
-  productionCost: number;
-  grossProfit: number;
-  marginPercent: number;
+  productId?: string;
 }
